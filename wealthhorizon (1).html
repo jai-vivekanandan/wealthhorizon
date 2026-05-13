@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WealthHorizon — Investment Simulator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --ink: #0e0e0e; --ink2: #555; --ink3: #999;
+    --surface: #ffffff; --surface2: #f6f5f2; --surface3: #eeecea;
+    --border: rgba(0,0,0,0.1);
+    --accent: #1a4a8a; --accent2: #c0392b; --accent3: #1d6e48;
+    --amber: #a06000;
+    --radius: 12px;
+    --font-display: 'DM Serif Display', Georgia, serif;
+    --font-body: 'DM Sans', system-ui, sans-serif;
+  }
+  html { scroll-behavior: smooth; }
+  body { font-family: var(--font-body); background: var(--surface2); color: var(--ink); min-height: 100vh; font-size: 15px; line-height: 1.6; }
+
+  .hero { background: var(--ink); color: white; padding: 3rem 2rem 2.5rem; position: relative; overflow: hidden; }
+  .hero::before { content:''; position:absolute; inset:0; background: repeating-linear-gradient(-45deg,transparent,transparent 40px,rgba(255,255,255,0.015) 40px,rgba(255,255,255,0.015) 41px); pointer-events:none; }
+  .hero-inner { max-width: 860px; margin: 0 auto; position: relative; }
+  .hero-eyebrow { font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:rgba(255,255,255,0.45); margin-bottom:1rem; font-weight:400; }
+  .hero h1 { font-family:var(--font-display); font-size:clamp(2.2rem,5vw,3.4rem); font-weight:400; line-height:1.12; color:white; margin-bottom:1rem; }
+  .hero h1 em { font-style:italic; color:rgba(255,255,255,0.55); }
+  .hero-sub { font-size:14px; color:rgba(255,255,255,0.5); max-width:520px; line-height:1.7; }
+  .hero-tags { display:flex; flex-wrap:wrap; gap:8px; margin-top:1.5rem; }
+  .tag { font-size:11px; padding:4px 10px; border:1px solid rgba(255,255,255,0.15); border-radius:100px; color:rgba(255,255,255,0.5); letter-spacing:0.04em; }
+
+  /* data status bar */
+  .data-bar { background: #0e0e0e; border-top: 1px solid rgba(255,255,255,0.07); padding: 8px 2rem; }
+  .data-bar-inner { max-width:860px; margin:0 auto; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .data-dot { width:7px; height:7px; border-radius:50%; background:#888; flex-shrink:0; transition: background 0.3s; }
+  .data-dot.live { background: #22c55e; }
+  .data-dot.error { background: #ef4444; }
+  .data-status { font-size:11px; color:rgba(255,255,255,0.35); }
+  .data-rates { display:flex; gap:16px; margin-left:auto; }
+  .data-rate-item { font-size:11px; color:rgba(255,255,255,0.3); }
+  .data-rate-item strong { color:rgba(255,255,255,0.6); font-weight:500; }
+
+  .app { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+  .tab-nav { display:flex; gap:4px; margin-bottom:1.5rem; background:var(--surface3); padding:4px; border-radius:var(--radius); width:fit-content; }
+  .tab-btn { padding:8px 18px; font-size:13px; font-family:var(--font-body); font-weight:400; border:none; border-radius:9px; background:transparent; color:var(--ink3); cursor:pointer; transition:all 0.15s; }
+  .tab-btn.active { background:white; color:var(--ink); font-weight:500; box-shadow:0 1px 3px rgba(0,0,0,0.08); }
+
+  .layout { display:grid; grid-template-columns:220px 1fr; gap:20px; align-items:start; }
+  @media(max-width:640px){ .layout{ grid-template-columns:1fr; } }
+
+  .panel { background:white; border:1px solid var(--border); border-radius:var(--radius); padding:1.1rem 1.2rem; }
+  .panel + .panel { margin-top:14px; }
+  .panel-title { font-size:10px; font-weight:500; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink3); margin-bottom:14px; }
+
+  .ctrl { margin-bottom:14px; }
+  .ctrl:last-child { margin-bottom:0; }
+  .ctrl-label { font-size:12px; color:var(--ink2); margin-bottom:5px; display:flex; justify-content:space-between; }
+  .ctrl-label strong { color:var(--ink); font-weight:500; }
+
+  input[type=range] { -webkit-appearance:none; width:100%; height:4px; border-radius:2px; background:var(--surface3); outline:none; cursor:pointer; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:16px; height:16px; border-radius:50%; background:var(--ink); border:2px solid white; box-shadow:0 0 0 1px rgba(0,0,0,0.2); cursor:pointer; transition:transform 0.1s; }
+  input[type=range]::-webkit-slider-thumb:active { transform:scale(1.2); }
+
+  select { width:100%; font-size:13px; font-family:var(--font-body); padding:7px 10px; border:1px solid var(--border); border-radius:8px; background:white; color:var(--ink); outline:none; cursor:pointer; }
+
+  .shock-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+  .shock-card { padding:9px 10px; border-radius:9px; border:1px solid var(--border); cursor:pointer; transition:all 0.12s; background:white; }
+  .shock-card:hover { border-color:rgba(0,0,0,0.2); }
+  .shock-card.active { background:#fef2f2; border-color:#fca5a5; }
+  .shock-card.active-positive { background:#f0fdf4; border-color:#86efac; }
+  .shock-icon { font-size:15px; margin-bottom:3px; }
+  .shock-name { font-size:11px; font-weight:500; color:var(--ink); }
+  .shock-desc { font-size:10px; color:var(--ink3); margin-top:1px; line-height:1.3; }
+
+  .chart-col { display:flex; flex-direction:column; gap:14px; }
+
+  .metrics-row { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .metric { background:white; border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; }
+  .metric-label { font-size:11px; color:var(--ink3); margin-bottom:4px; display:flex; align-items:center; gap:5px; }
+  .metric-dot { width:8px; height:8px; border-radius:2px; flex-shrink:0; }
+  .metric-val { font-size:20px; font-weight:500; color:var(--ink); font-family:var(--font-display); }
+  .metric-val.red { color:var(--accent2); }
+  .metric-val.green { color:var(--accent3); }
+  .metric-sub { font-size:11px; color:var(--ink3); margin-top:2px; }
+
+  .chart-card { background:white; border:1px solid var(--border); border-radius:var(--radius); padding:1.1rem 1.2rem; }
+  .chart-wrap { position:relative; width:100%; height:280px; }
+  .legend-row { display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+  .legend-item { display:flex; align-items:center; gap:5px; font-size:12px; color:var(--ink2); }
+  .legend-line { width:20px; height:2px; border-radius:1px; }
+
+  .insight { background:white; border:1px solid var(--border); border-left:3px solid #f59e0b; border-radius:var(--radius); padding:12px 16px; font-size:13px; color:var(--ink2); line-height:1.65; border-top-left-radius:0; border-bottom-left-radius:0; }
+  .insight.positive { border-left-color:#22c55e; }
+  .insight strong { color:var(--ink); font-weight:500; }
+
+  .strat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-top:14px; }
+  .strat-result { background:white; border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; }
+  .strat-result-name { font-size:11px; color:var(--ink3); margin-bottom:4px; display:flex; align-items:center; gap:5px; }
+  .strat-result-val { font-size:18px; font-weight:500; font-family:var(--font-display); color:var(--ink); }
+  .strat-result-sub { font-size:11px; color:var(--ink3); margin-top:2px; }
+
+  .source-note { font-size:11px; color:var(--ink3); margin-top:8px; text-align:right; }
+
+  .loading-overlay { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink3); padding:1rem 0; }
+  .spinner { width:16px; height:16px; border:2px solid var(--surface3); border-top-color:var(--ink3); border-radius:50%; animation:spin 0.7s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  .footer { text-align:center; padding:2rem; font-size:12px; color:var(--ink3); border-top:1px solid var(--border); margin-top:1rem; }
+  .footer a { color:var(--ink2); text-decoration:none; }
+
+  .tab-panel { display:none; }
+  .tab-panel.active { display:block; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-inner">
+    <div class="hero-eyebrow">Portfolio project</div>
+    <h1>Wealth<em>Horizon</em><br>Simulator</h1>
+    <p class="hero-sub">See how everyday investment decisions — and life's surprises — compound into dramatically different outcomes over time.</p>
+    <div class="hero-tags">
+      <span class="tag">Real market data</span>
+      <span class="tag">Competing strategies</span>
+      <span class="tag">Life shock modeling</span>
+      <span class="tag">Recovery analysis</span>
+    </div>
+  </div>
+</div>
+
+<div class="data-bar">
+  <div class="data-bar-inner">
+    <span class="data-dot" id="data-dot"></span>
+    <span class="data-status" id="data-status">Loading market data…</span>
+    <div class="data-rates" id="data-rates"></div>
+  </div>
+</div>
+
+<div class="app">
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('strategies',this)">Competing strategies</button>
+    <button class="tab-btn" onclick="switchTab('shocks',this)">Life shock impact</button>
+  </div>
+
+  <!-- Tab 1 -->
+  <div class="tab-panel active" id="tab-strategies">
+    <div class="layout">
+      <div>
+        <div class="panel">
+          <div class="panel-title">Your inputs</div>
+          <div class="ctrl">
+            <div class="ctrl-label">Initial investment <strong id="s1-init-lbl">$10,000</strong></div>
+            <input type="range" id="s1-init" min="1000" max="100000" step="1000" value="10000">
+          </div>
+          <div class="ctrl">
+            <div class="ctrl-label">Monthly contribution <strong id="s1-mon-lbl">$500</strong></div>
+            <input type="range" id="s1-mon" min="0" max="5000" step="50" value="500">
+          </div>
+          <div class="ctrl">
+            <div class="ctrl-label">Starting age <strong id="s1-age-lbl">30</strong></div>
+            <input type="range" id="s1-age" min="18" max="55" step="1" value="30">
+          </div>
+          <div class="ctrl">
+            <div class="ctrl-label">Time horizon <strong id="s1-yrs-lbl">30 yrs</strong></div>
+            <input type="range" id="s1-yrs" min="5" max="40" step="1" value="30">
+          </div>
+        </div>
+        <div class="panel" style="margin-top:14px;">
+          <div class="panel-title">Toggle strategies</div>
+          <div id="strat-toggles"></div>
+        </div>
+      </div>
+      <div class="chart-col">
+        <div id="s1-loading" class="loading-overlay"><div class="spinner"></div>Fetching live market rates…</div>
+        <div id="s1-main" style="display:none;">
+          <div class="chart-card">
+            <div id="s1-legend" class="legend-row" style="margin-top:0;margin-bottom:12px;"></div>
+            <div class="chart-wrap"><canvas id="chart1" role="img" aria-label="Line chart comparing investment strategies"></canvas></div>
+          </div>
+          <div class="strat-grid" id="strat-metrics"></div>
+          <div class="insight" id="s1-insight"></div>
+          <div class="source-note" id="s1-source"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 2 -->
+  <div class="tab-panel" id="tab-shocks">
+    <div class="layout">
+      <div>
+        <div class="panel">
+          <div class="panel-title">Base inputs</div>
+          <div class="ctrl">
+            <div class="ctrl-label">Initial investment <strong id="s2-init-lbl">$25,000</strong></div>
+            <input type="range" id="s2-init" min="1000" max="100000" step="1000" value="25000">
+          </div>
+          <div class="ctrl">
+            <div class="ctrl-label">Monthly contribution <strong id="s2-mon-lbl">$500</strong></div>
+            <input type="range" id="s2-mon" min="0" max="5000" step="50" value="500">
+          </div>
+          <div class="ctrl">
+            <div class="ctrl-label">Starting age <strong id="s2-age-lbl">35</strong></div>
+            <input type="range" id="s2-age" min="20" max="55" step="1" value="35">
+          </div>
+          <div class="ctrl">
+            <div class="ctrl-label">Time horizon <strong id="s2-yrs-lbl">30 yrs</strong></div>
+            <input type="range" id="s2-yrs" min="10" max="40" step="1" value="30">
+          </div>
+          <div class="ctrl">
+            <div class="ctrl-label">Shock at age <strong id="s2-shock-lbl">42</strong></div>
+            <input type="range" id="s2-shock" min="21" max="54" step="1" value="42">
+          </div>
+          <div class="ctrl">
+            <div class="ctrl-label">Strategy</div>
+            <select id="s2-strat"></select>
+          </div>
+        </div>
+        <div class="panel" style="margin-top:14px;">
+          <div class="panel-title">Choose a life shock</div>
+          <div class="shock-grid" id="shock-grid"></div>
+        </div>
+      </div>
+      <div class="chart-col">
+        <div class="metrics-row" id="shock-metrics"></div>
+        <div class="chart-card">
+          <div id="s2-legend" class="legend-row" style="margin-top:0;margin-bottom:12px;"></div>
+          <div class="chart-wrap"><canvas id="chart2" role="img" aria-label="Portfolio with and without life shock"></canvas></div>
+        </div>
+        <div class="insight" id="s2-insight"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  Market data via <a href="https://www.alphavantage.co" target="_blank">Alpha Vantage</a> &nbsp;·&nbsp;
+  WealthHorizon Simulator &nbsp;·&nbsp;
+  Returns shown are historical and do not guarantee future performance.
+</div>
+
+<script>
+const AV_KEY = 'JJ05QLZJ82M4ZD7W';
+
+// ── Fallback rates (used if API fails) ───────────────────────────────────────
+const FALLBACK = {
+  spx:   { rate: 0.105, label: 'S&P 500 (50yr avg)' },
+  reit:  { rate: 0.085, label: 'Real estate (50yr avg)' },
+  bond:  { rate: 0.045, label: 'Treasury bonds (avg)' },
+  hysa:  { rate: 0.048, label: 'High-yield savings' },
+  bal:   { rate: 0.075, label: 'Balanced 60/40 (avg)' },
+};
+
+let RATES = { ...FALLBACK };
+let dataLoaded = false;
+let fetchedOn = null;
+
+// ── Fetch real rates from Alpha Vantage ──────────────────────────────────────
+async function fetchMarketData() {
+  const dot = document.getElementById('data-dot');
+  const status = document.getElementById('data-status');
+
+  try {
+    // 1. SPY (S&P 500 ETF) — monthly adjusted, calc 10yr CAGR
+    const spyRes = await fetch(
+      `https://www.alphavantage.co/query?function=TIME_SERIES_MONTHLY_ADJUSTED&symbol=SPY&apikey=${AV_KEY}`
+    );
+    const spyData = await spyRes.json();
+
+    if (spyData['Monthly Adjusted Time Series']) {
+      const entries = Object.entries(spyData['Monthly Adjusted Time Series'])
+        .sort((a, b) => new Date(b[0]) - new Date(a[0]));
+
+      // 10-year CAGR from adjusted close
+      if (entries.length >= 120) {
+        const latestPrice  = parseFloat(entries[0][1]['5. adjusted close']);
+        const price10yAgo  = parseFloat(entries[119][1]['5. adjusted close']);
+        const cagr10y      = Math.pow(latestPrice / price10yAgo, 1/10) - 1;
+        RATES.spx = { rate: Math.min(Math.max(cagr10y, 0.06), 0.18), label: 'S&P 500 (10yr CAGR, live)' };
+
+        // Balanced = 60% SPY + 40% bonds (bonds stay fallback)
+        RATES.bal = { rate: RATES.spx.rate * 0.6 + RATES.bond.rate * 0.4, label: 'Balanced 60/40 (live)' };
+      }
+      fetchedOn = entries[0][0];
+    }
+
+    // 2. Federal Funds Rate as proxy for HYSA
+    const ffRes = await fetch(
+      `https://www.alphavantage.co/query?function=FEDERAL_FUNDS_RATE&interval=monthly&apikey=${AV_KEY}`
+    );
+    const ffData = await ffRes.json();
+    if (ffData.data && ffData.data.length > 0) {
+      const latestFF = parseFloat(ffData.data[0].value) / 100;
+      // HYSA typically tracks fed funds closely
+      RATES.hysa = { rate: Math.min(Math.max(latestFF * 0.95, 0.01), 0.08), label: 'Savings rate (live fed rate)' };
+      RATES.bond = { rate: Math.min(Math.max(latestFF * 0.85, 0.02), 0.07), label: 'Treasury bonds (live)' };
+      RATES.bal  = { rate: RATES.spx.rate * 0.6 + RATES.bond.rate * 0.4, label: 'Balanced 60/40 (live)' };
+    }
+
+    // Success
+    dot.classList.add('live');
+    const d = fetchedOn ? `· data through ${fetchedOn}` : '';
+    status.textContent = `Live market data loaded ${d}`;
+    dataLoaded = true;
+
+    // Show rates in bar
+    const ratesEl = document.getElementById('data-rates');
+    ratesEl.innerHTML = [
+      { k:'S&P 500', v: RATES.spx.rate },
+      { k:'Bonds',   v: RATES.bond.rate },
+      { k:'HYSA',    v: RATES.hysa.rate },
+    ].map(r=>`<span class="data-rate-item"><strong>${(r.v*100).toFixed(1)}%</strong> ${r.k}</span>`).join('');
+
+  } catch(e) {
+    dot.classList.add('error');
+    status.textContent = 'Using historical averages (API unavailable)';
+  }
+
+  // Build UI after fetch (success or fallback)
+  buildAll();
+}
+
+// ── Strategies built from live rates ─────────────────────────────────────────
+function getStrategies() {
+  return [
+    { key:'spx',  label:'Index funds (S&P 500)', rate: RATES.spx.rate,  color:'#1a4a8a', dash:[] },
+    { key:'reit', label:'Real estate (REITs)',   rate: RATES.reit.rate, color:'#c0392b', dash:[6,3] },
+    { key:'bal',  label:'Balanced 60/40',        rate: RATES.bal.rate,  color:'#1d6e48', dash:[3,3] },
+    { key:'bond', label:'Treasury bonds',        rate: RATES.bond.rate, color:'#a06000', dash:[8,4] },
+    { key:'hysa', label:'High-yield savings',    rate: RATES.hysa.rate, color:'#888',    dash:[2,2] },
+  ];
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function fmtShort(n){ const a=Math.abs(n); if(a>=1e6) return '$'+(n/1e6).toFixed(2)+'M'; if(a>=1000) return '$'+(n/1e3).toFixed(0)+'k'; return '$'+Math.round(n); }
+function fmtFull(n){ return '$'+Math.round(n).toLocaleString(); }
+
+function simulateClean(init,monthly,years,rate){
+  const mr=rate/12; const pts=[init]; let p=init;
+  for(let m=0;m<years*12;m++){ p=p*(1+mr)+monthly; if(m%12===11) pts.push(Math.round(p)); }
+  return pts;
+}
+
+function simulateShock(init,monthly,years,rate,shockYr,shock){
+  const mr=rate/12, sm=shockYr*12, se=sm+(shock.stopMonths||0);
+  const pts=[init]; let p=init;
+  for(let m=0;m<years*12;m++){
+    if(m===sm){ if(shock.crash) p*=(1-shock.crash); if(shock.split) p*=(1-shock.split); if(shock.hit) p=Math.max(0,p-shock.hit); }
+    const contrib=(m>=sm&&m<se)?0:monthly;
+    p=p*(1+mr)+contrib;
+    if(m%12===11) pts.push(Math.round(p));
+  }
+  return pts;
+}
+
+function switchTab(name, btn){
+  document.querySelectorAll('.tab-panel').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el=>el.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── Tab 1 ─────────────────────────────────────────────────────────────────────
+let activeStrats = new Set(['spx','reit','bal','bond','hysa']);
+let chart1 = null;
+
+function buildStratToggles(){
+  const STRATEGIES = getStrategies();
+  const el = document.getElementById('strat-toggles');
+  el.innerHTML='';
+  STRATEGIES.forEach(s=>{
+    const on = activeStrats.has(s.key);
+    const d = document.createElement('div');
+    d.style.cssText=`display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;border:1px solid ${on?'rgba(0,0,0,0.12)':'rgba(0,0,0,0.06)'};margin-bottom:6px;cursor:pointer;background:${on?'white':'#fafafa'};transition:all .12s;`;
+    d.innerHTML=`<span style="width:14px;height:3px;background:${s.color};border-radius:2px;flex-shrink:0;opacity:${on?1:0.3};"></span><span style="font-size:12px;color:${on?'#0e0e0e':'#aaa'};flex:1;">${s.label}</span><span style="font-size:11px;color:#bbb;">${(s.rate*100).toFixed(1)}%</span>`;
+    d.onclick=()=>{ if(activeStrats.has(s.key)&&activeStrats.size>1) activeStrats.delete(s.key); else activeStrats.add(s.key); buildStratToggles(); renderS1(); };
+    el.appendChild(d);
+  });
+}
+
+function renderS1(){
+  const STRATEGIES = getStrategies();
+  const init=+document.getElementById('s1-init').value;
+  const mon=+document.getElementById('s1-mon').value;
+  const age=+document.getElementById('s1-age').value;
+  const yrs=+document.getElementById('s1-yrs').value;
+  document.getElementById('s1-init-lbl').textContent=fmtFull(init);
+  document.getElementById('s1-mon-lbl').textContent=fmtFull(mon);
+  document.getElementById('s1-age-lbl').textContent=age;
+  document.getElementById('s1-yrs-lbl').textContent=yrs+' yrs';
+
+  const labels=[];
+  for(let y=0;y<=yrs;y++) labels.push(y===0?'Now':String(age+y));
+
+  const datasets=STRATEGIES.map(s=>({
+    label:s.label, data:activeStrats.has(s.key)?simulateClean(init,mon,yrs,s.rate):labels.map(()=>null),
+    borderColor:s.color, borderDash:s.dash, backgroundColor:'transparent',
+    borderWidth:2, pointRadius:0, pointHoverRadius:4, tension:0.35, spanGaps:true,
+  }));
+
+  if(!chart1){
+    chart1=new Chart(document.getElementById('chart1'),{
+      type:'line',data:{labels,datasets},
+      options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtShort(c.parsed.y)}`}}},
+        scales:{x:{ticks:{font:{size:11},maxRotation:0,autoSkip:true,maxTicksLimit:9},grid:{display:false}},
+          y:{ticks:{font:{size:11},callback:v=>fmtShort(v)},grid:{color:'rgba(0,0,0,0.05)'},border:{display:false}}}
+      }
+    });
+  } else { chart1.data={labels,datasets}; chart1.update('none'); }
+
+  const invested=init+mon*yrs*12;
+  const results=STRATEGIES.filter(s=>activeStrats.has(s.key))
+    .map(s=>({s,fv:simulateClean(init,mon,yrs,s.rate).at(-1)}))
+    .sort((a,b)=>b.fv-a.fv);
+
+  const mg=document.getElementById('strat-metrics');
+  mg.innerHTML='';
+  results.forEach(({s,fv})=>{
+    const pct=((fv-invested)/invested*100).toFixed(0);
+    const d=document.createElement('div');
+    d.className='strat-result';
+    d.innerHTML=`<div class="strat-result-name"><span style="width:10px;height:3px;background:${s.color};border-radius:1px;display:inline-block;"></span>${s.label}</div><div class="strat-result-val">${fmtShort(fv)}</div><div class="strat-result-sub">+${pct}% on invested</div>`;
+    mg.appendChild(d);
+  });
+
+  const lg=document.getElementById('s1-legend');
+  lg.innerHTML='';
+  STRATEGIES.filter(s=>activeStrats.has(s.key)).forEach(s=>{
+    lg.innerHTML+=`<span class="legend-item"><span class="legend-line" style="background:${s.color};"></span>${s.label}</span>`;
+  });
+
+  if(results.length>=2){
+    const best=results[0], worst=results[results.length-1];
+    const diff=best.fv-worst.fv;
+    document.getElementById('s1-insight').innerHTML=`<strong>${best.s.label}</strong> outperforms <strong>${worst.s.label}</strong> by <strong>${fmtShort(diff)}</strong> over ${yrs} years — on the exact same <strong>${fmtShort(invested)}</strong> invested. That gap is pure strategy.`;
+  }
+
+  const src=document.getElementById('s1-source');
+  if(dataLoaded && fetchedOn) src.textContent=`Rates derived from live market data · SPY data through ${fetchedOn}`;
+  else src.textContent='Rates based on 50-year historical averages';
+}
+
+// ── Tab 2 ─────────────────────────────────────────────────────────────────────
+const SHOCKS=[
+  {key:'job',     icon:'💼', name:'Job loss',          desc:'12 months no income',  stopMonths:12, hit:0,      split:0,    crash:0,    positive:false},
+  {key:'med',     icon:'🏥', name:'Medical emergency', desc:'$40k out-of-pocket',   stopMonths:3,  hit:40000,  split:0,    crash:0,    positive:false},
+  {key:'divorce', icon:'⚖️', name:'Divorce',           desc:'45% asset split',      stopMonths:6,  hit:0,      split:0.45, crash:0,    positive:false},
+  {key:'crash',   icon:'📉', name:'Market crash',      desc:'-40% portfolio drop',  stopMonths:0,  hit:0,      split:0,    crash:0.40, positive:false},
+  {key:'home',    icon:'🏠', name:'Home repair',       desc:'$25k emergency cost',  stopMonths:2,  hit:25000,  split:0,    crash:0,    positive:false},
+  {key:'inherit', icon:'🎁', name:'Inheritance',       desc:'+$50k windfall',       stopMonths:0,  hit:-50000, split:0,    crash:0,    positive:true},
+];
+let activeShock='job';
+let chart2=null;
+
+function buildShockGrid(){
+  const el=document.getElementById('shock-grid');
+  el.innerHTML='';
+  SHOCKS.forEach(s=>{
+    const isActive=activeShock===s.key;
+    const d=document.createElement('div');
+    d.className='shock-card'+(isActive?(s.positive?' active-positive':' active'):'');
+    d.innerHTML=`<div class="shock-icon">${s.icon}</div><div class="shock-name">${s.name}</div><div class="shock-desc">${s.desc}</div>`;
+    d.onclick=()=>{ activeShock=s.key; buildShockGrid(); renderS2(); };
+    el.appendChild(d);
+  });
+}
+
+function buildStratSelect(){
+  const sel=document.getElementById('s2-strat');
+  sel.innerHTML='';
+  getStrategies().forEach(s=>{
+    const opt=document.createElement('option');
+    opt.value=s.rate;
+    opt.textContent=`${s.label} (${(s.rate*100).toFixed(1)}%)`;
+    sel.appendChild(opt);
+  });
+}
+
+function renderS2(){
+  const init=+document.getElementById('s2-init').value;
+  const mon=+document.getElementById('s2-mon').value;
+  const age=+document.getElementById('s2-age').value;
+  const yrs=+document.getElementById('s2-yrs').value;
+  const shockAge=+document.getElementById('s2-shock').value;
+  const rate=+document.getElementById('s2-strat').value;
+  document.getElementById('s2-init-lbl').textContent=fmtFull(init);
+  document.getElementById('s2-mon-lbl').textContent=fmtFull(mon);
+  document.getElementById('s2-age-lbl').textContent=age;
+  document.getElementById('s2-yrs-lbl').textContent=yrs+' yrs';
+  document.getElementById('s2-shock-lbl').textContent=shockAge;
+
+  const shockYr=Math.max(1,Math.min(shockAge-age,yrs-1));
+  const shock=SHOCKS.find(s=>s.key===activeShock);
+  const labels=[];
+  for(let y=0;y<=yrs;y++) labels.push(y===0?'Now':String(age+y));
+
+  const clean=simulateClean(init,mon,yrs,rate);
+  const shocked=simulateShock(init,mon,yrs,rate,shockYr,shock);
+  const endClean=clean.at(-1), endShocked=shocked.at(-1);
+  const cost=endClean-endShocked;
+  const shockColor=shock.positive?'#1d6e48':'#c0392b';
+
+  const datasets=[
+    {label:'No shock',data:clean,borderColor:'#1a4a8a',borderDash:[],backgroundColor:'transparent',borderWidth:2,pointRadius:0,pointHoverRadius:4,tension:0.35},
+    {label:shock.name,data:shocked,borderColor:shockColor,borderDash:[5,3],backgroundColor:'transparent',borderWidth:2,pointRadius:0,pointHoverRadius:4,tension:0.35},
+  ];
+
+  const shockPlugin={id:'shockLine',afterDraw(chart){
+    const{ctx,scales:{x,y}}=chart;
+    const xi=x.getPixelForValue(shockYr);
+    ctx.save();
+    ctx.strokeStyle='rgba(192,57,43,0.3)'; ctx.lineWidth=1; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(xi,y.top); ctx.lineTo(xi,y.bottom); ctx.stroke();
+    ctx.fillStyle='rgba(192,57,43,0.6)'; ctx.font='11px DM Sans,sans-serif';
+    ctx.fillText('Age '+shockAge,xi+4,y.top+14);
+    ctx.restore();
+  }};
+
+  if(!chart2){
+    chart2=new Chart(document.getElementById('chart2'),{
+      type:'line',data:{labels,datasets},plugins:[shockPlugin],
+      options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtShort(c.parsed.y)}`}}},
+        scales:{x:{ticks:{font:{size:11},maxRotation:0,autoSkip:true,maxTicksLimit:9},grid:{display:false}},
+          y:{ticks:{font:{size:11},callback:v=>fmtShort(v)},grid:{color:'rgba(0,0,0,0.05)'},border:{display:false}}}
+      }
+    });
+  } else { chart2.data={labels,datasets}; chart2.update('none'); }
+
+  const invested=init+mon*yrs*12;
+  const pct=Math.abs(cost/endClean*100).toFixed(1);
+  const sign=cost<0?'+':'-';
+  const label=cost<0?'Long-term gain':'Long-term cost';
+  const valClass=shock.positive?'green':'red';
+
+  document.getElementById('shock-metrics').innerHTML=`
+    <div class="metric"><div class="metric-label"><span class="metric-dot" style="background:#1a4a8a;"></span>Without shock</div><div class="metric-val">${fmtShort(endClean)}</div><div class="metric-sub">at age ${age+yrs}</div></div>
+    <div class="metric"><div class="metric-label"><span class="metric-dot" style="background:${shockColor};"></span>With ${shock.name.toLowerCase()}</div><div class="metric-val ${valClass}">${fmtShort(endShocked)}</div><div class="metric-sub">at age ${age+yrs}</div></div>
+    <div class="metric"><div class="metric-label">${label}</div><div class="metric-val ${valClass}">${sign}${fmtShort(Math.abs(cost))}</div><div class="metric-sub">${pct}% of final wealth</div></div>
+  `;
+
+  document.getElementById('s2-legend').innerHTML=`
+    <span class="legend-item"><span class="legend-line" style="background:#1a4a8a;"></span>No shock</span>
+    <span class="legend-item"><span class="legend-line" style="background:${shockColor};border-top:2px dashed ${shockColor};height:0;margin-top:1px;"></span>${shock.name}</span>
+  `;
+
+  const ins=document.getElementById('s2-insight');
+  ins.className='insight'+(shock.positive?' positive':'');
+  if(shock.positive){
+    ins.innerHTML=`A <strong>${shock.name.toLowerCase()}</strong> at age <strong>${shockAge}</strong> adds <strong>${fmtShort(Math.abs(cost))}</strong> to your final wealth — compounding turns a one-time windfall into significantly more over time.`;
+  } else if(cost>0){
+    ins.innerHTML=`A <strong>${shock.name.toLowerCase()}</strong> at age <strong>${shockAge}</strong> costs <strong>${fmtShort(cost)}</strong> in final wealth — not just the immediate hit, but all the compounding that never happens.`;
+  } else {
+    ins.innerHTML=`At this timing and strategy, the shock has minimal lasting impact on your final wealth.`;
+  }
+}
+
+function buildAll(){
+  document.getElementById('s1-loading').style.display='none';
+  document.getElementById('s1-main').style.display='flex';
+  document.getElementById('s1-main').style.flexDirection='column';
+  document.getElementById('s1-main').style.gap='14px';
+  buildStratToggles();
+  buildStratSelect();
+  renderS1();
+  buildShockGrid();
+  renderS2();
+  ['s1-init','s1-mon','s1-age','s1-yrs'].forEach(id=>document.getElementById(id).addEventListener('input',()=>{ buildStratToggles(); renderS1(); }));
+  ['s2-init','s2-mon','s2-age','s2-yrs','s2-shock','s2-strat'].forEach(id=>document.getElementById(id).addEventListener('input',renderS2));
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+fetchMarketData();
+</script>
+</body>
+</html>
